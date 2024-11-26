@@ -3,12 +3,13 @@ from tkinter import messagebox, scrolledtext
 
 
 class FiniteAutomaton:
-    def __init__(self):
+    def __init__(self, deterministic=None):
         self.states = set()
         self.alphabet = set()
         self.transitions = {}
         self.initialState = None
         self.acceptStates = set()
+        self.deterministic = deterministic
 
     def addState(self, state, isInitial=False, isAccept=False):
         self.states.add(state)
@@ -20,23 +21,41 @@ class FiniteAutomaton:
     def addTransition(self, fromState, symbol, toState):
         if fromState not in self.transitions:
             self.transitions[fromState] = {}
-        if symbol not in self.transitions[fromState]:
-            self.transitions[fromState][symbol] = set()
-        self.transitions[fromState][symbol].add(toState)
+        if symbol in self.transitions[fromState]:
+            self.deterministic = False
+        else:
+            self.transitions[fromState][symbol] = toState
 
     def validateString(self, inputString):
+        if not inputString:
+            return self.initialState in self.acceptStates
+
         currentStates = {self.initialState}
         for symbol in inputString:
             nextStates = set()
             for state in currentStates:
                 if state in self.transitions and symbol in self.transitions[state]:
-                    nextStates.update(self.transitions[state][symbol])
+                    nextStates.add(self.transitions[state][symbol])
             currentStates = nextStates
         return bool(currentStates & self.acceptStates)
 
+    def describe(self):
+        """Gera a descrição textual do autômato."""
+        description = []
+        description.append(f"Estados: {', '.join(self.states)}")
+        description.append(f"Alfabeto: {', '.join(self.alphabet)}")
+        description.append(f"Estado Inicial: {self.initialState}")
+        description.append(f"Estados de Aceitação: {', '.join(self.acceptStates)}")
+        description.append(f"Autômato Determinístico: {'Sim' if self.deterministic else 'Não'}")
+        description.append("Transições:")
+        for state, transitions in self.transitions.items():
+            for symbol, target in transitions.items():
+                description.append(f"  {state} -- {symbol} --> {target}")
+        return "\n".join(description)
+
 
 def grammarToAutomaton(grammarRules, startSymbol):
-    fa = FiniteAutomaton()
+    fa = FiniteAutomaton(deterministic=True)
     for rule in grammarRules:
         left, right = rule.split("->")
         left = left.strip()
@@ -53,6 +72,7 @@ def grammarToAutomaton(grammarRules, startSymbol):
                 terminal, nonTerminal = production[0], production[1:]
                 fa.addState(nonTerminal)
                 fa.addTransition(left, terminal, nonTerminal)
+                fa.alphabet.add(terminal)
     return fa
 
 
@@ -76,8 +96,8 @@ class GrammarSimulatorApp:
         self.runButton = tk.Button(root, text="Testar Strings", command=self.runSimulation)
         self.runButton.pack(pady=10)
 
-        tk.Label(root, text="Resultados:").pack()
-        self.resultOutput = scrolledtext.ScrolledText(root, width=50, height=10, state="disabled")
+        tk.Label(root, text="Definição do Autômato e Resultados:").pack()
+        self.resultOutput = scrolledtext.ScrolledText(root, width=50, height=15, state="disabled")
         self.resultOutput.pack()
 
     def runSimulation(self):
@@ -85,8 +105,8 @@ class GrammarSimulatorApp:
         startSymbol = self.startSymbolEntry.get().strip()
         testStrings = self.testStringsEntry.get().strip().split(",")
 
-        if not grammarText or not startSymbol or not testStrings:
-            messagebox.showerror("Erro", "Todos os campos devem ser preenchidos.")
+        if not grammarText or not startSymbol:
+            messagebox.showerror("Erro", "Os campos de gramática e símbolo inicial devem ser preenchidos.")
             return
 
         grammarRules = grammarText.splitlines()
@@ -96,9 +116,13 @@ class GrammarSimulatorApp:
             messagebox.showerror("Erro", f"Erro ao processar a gramática: {e}")
             return
 
+        description = automaton.describe()
+
         results = []
         for string in testStrings:
             string = string.strip()
+            if not string:
+                continue
             if automaton.validateString(string):
                 results.append(f"'{string}' -> Aceita")
             else:
@@ -106,6 +130,7 @@ class GrammarSimulatorApp:
 
         self.resultOutput.config(state="normal")
         self.resultOutput.delete("1.0", tk.END)
+        self.resultOutput.insert(tk.END, description + "\n\n")
         self.resultOutput.insert(tk.END, "\n".join(results))
         self.resultOutput.config(state="disabled")
 
