@@ -1,6 +1,8 @@
 import tkinter as tk
 from tkinter import messagebox, scrolledtext
-
+import networkx as nx
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 class FiniteAutomaton:
     def __init__(self, deterministic=None):
@@ -53,6 +55,19 @@ class FiniteAutomaton:
                 description.append(f"  {state} -- {symbol} --> {target}")
         return "\n".join(description)
 
+    def generateGraph(self):
+        """Gera o grafo visual do autômato."""
+        G = nx.DiGraph()
+        for state, transitions in self.transitions.items():
+            for symbol, target in transitions.items():
+                G.add_edge(state, target, label=symbol)
+
+        pos = nx.spring_layout(G)
+        plt.figure(figsize=(8, 6))
+        nx.draw(G, pos, with_labels=True, node_size=2000, node_color="skyblue", font_size=10, font_weight="bold", arrows=True)
+        edge_labels = nx.get_edge_attributes(G, 'label')
+        nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels)
+        return plt
 
 def grammarToAutomaton(grammarRules, startSymbol):
     fa = FiniteAutomaton(deterministic=True)
@@ -96,6 +111,9 @@ class GrammarSimulatorApp:
         self.runButton = tk.Button(root, text="Testar Strings", command=self.runSimulation)
         self.runButton.pack(pady=10)
 
+        self.graphButton = tk.Button(root, text="Gerar Grafo", command=self.generateGraph)
+        self.graphButton.pack(pady=5)
+
         tk.Label(root, text="Definição do Autômato e Resultados:").pack()
         self.resultOutput = scrolledtext.ScrolledText(root, width=50, height=15, state="disabled")
         self.resultOutput.pack()
@@ -111,19 +129,19 @@ class GrammarSimulatorApp:
 
         grammarRules = grammarText.splitlines()
         try:
-            automaton = grammarToAutomaton(grammarRules, startSymbol)
+            self.automaton = grammarToAutomaton(grammarRules, startSymbol)
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao processar a gramática: {e}")
             return
 
-        description = automaton.describe()
+        description = self.automaton.describe()
 
         results = []
         for string in testStrings:
             string = string.strip()
             if not string:
                 continue
-            if automaton.validateString(string):
+            if self.automaton.validateString(string):
                 results.append(f"'{string}' -> Aceita")
             else:
                 results.append(f"'{string}' -> Rejeitada")
@@ -134,6 +152,13 @@ class GrammarSimulatorApp:
         self.resultOutput.insert(tk.END, "\n".join(results))
         self.resultOutput.config(state="disabled")
 
+    def generateGraph(self):
+        if not hasattr(self, 'automaton'):
+            messagebox.showerror("Erro", "Por favor, execute a simulação primeiro.")
+            return
+
+        plt = self.automaton.generateGraph()
+        plt.show()
 
 if __name__ == "__main__":
     root = tk.Tk()
